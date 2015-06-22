@@ -1,0 +1,8 @@
+[package]
+
+name = "exceptions-rs"
+version = "0.0.1"
+authors = [ "Pierre-Henri Symoneaux" ]
+
+[lib]
+name = "exceptions"
