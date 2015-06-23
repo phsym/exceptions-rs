@@ -4,6 +4,7 @@ use std::string::ToString;
 use std::io;
 use std::io::{stdout, stderr, Write};
 use std::fmt;
+use std::ops::Deref;
 
 /// Represent an entry in a stack trace
 pub struct StackEntry {
@@ -15,6 +16,8 @@ pub struct StackEntry {
 	pub expr: &'static str
 }
 
+/// Represent an object that can be thrown and can register the stack informations
+/// when beeing propagetd accross the call stack
 pub trait Throwable {
 	/// Push stack trace information
 	fn push_stack(&mut self, file: &'static str, line: u32, expr: &'static str);
@@ -34,8 +37,15 @@ pub trait Throwable {
 		for s in self.get_stack_trace() {
 			writeln!(err, "\tat {} [{}:{}]", s.expr, s.file, s.line); 
 		}
+		if let Some(cause) = self.get_cause() {
+			write!(err, "Caused by: ");
+			cause.print_stack_trace();
+		} 
 		err.flush();
 	}
+	
+	/// Get the `Throwable` cause (if any) that caused this `Throwable` to be thrown
+	fn get_cause(&self) -> Option<&Throwable>;
 }
 
 /// Trait implented by types that can be converted
@@ -51,15 +61,20 @@ impl <T: Throwable> IntoThrowable<T> for T {
 	}
 }
 
-
 pub struct Exception {
 	message: String,
-	stack: Vec<StackEntry>
+	stack: Vec<StackEntry>,
+	cause: Option<Box<Throwable>>
 }
 
 impl Exception {
 	pub fn new(message: String) -> Exception {
-		return Exception{message: message, stack: Vec::new()};
+		return Exception{message: message, stack: Vec::new(), cause: None};
+	}
+	
+	pub fn new_with_cause<T: Throwable+'static>(message: String, cause: T) -> Exception {
+		//FIXME: Take Box<T> or Box<Throwable> as cause argument
+		return Exception{message: message, stack: Vec::new(), cause: Some(Box::new(cause))};
 	}
 }
 
@@ -74,6 +89,13 @@ impl Throwable for Exception {
 	
 	fn get_message(&self) -> &String {
 		return &self.message;
+	}
+	
+	fn get_cause(&self) -> Option<&Throwable> {
+		if self.cause.is_some() {
+			return Some(self.cause.as_ref().unwrap().deref());
+		}
+		return None;
 	}
 }
 
