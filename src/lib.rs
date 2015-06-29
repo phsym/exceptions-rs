@@ -25,10 +25,13 @@ pub trait Throwable {
 	/// Get the stack trace
 	fn get_stack_trace(&self) -> &Vec<StackEntry>;
 	
-	/// Return the message explaining what cause the Throwable` to be raised
-	fn get_message(&self) -> &String;
+	/// Return the message explaining what caused the `Throwable` to be raised
+	fn get_message(&self) -> &str;
 	
-	/// Print the stack trace to stdout. Code should instead call the macro `print_stack_trace!`
+	/// Get the `Throwable` cause (if any) that caused this `Throwable` to be thrown
+	fn get_cause(&self) -> Option<&Throwable>;
+	
+	/// Print the stack trace to stdout. Code should instead call the `print_stack_trace!` macro
 	#[allow(unused_must_use)] // Ignore if writing to stderr fails
 	fn print_stack_trace(&self) {
 		stdout().flush(); // Flush stdout to prevent mixes of stoud and stderr
@@ -43,9 +46,24 @@ pub trait Throwable {
 		} 
 		err.flush();
 	}
+}
+
+impl <T: Throwable+?Sized> Throwable for Box<T> {
+	fn push_stack(&mut self, file: &'static str, line: u32, expr: &'static str) {
+		(**self).push_stack(file, line, expr);
+	}
 	
-	/// Get the `Throwable` cause (if any) that caused this `Throwable` to be thrown
-	fn get_cause(&self) -> Option<&Throwable>;
+	fn get_stack_trace(&self) -> &Vec<StackEntry> {
+		return (**self).get_stack_trace();
+	}
+	
+	fn get_message(&self) -> &str {
+		return (**self).get_message();
+	}
+	
+	fn get_cause(&self) -> Option<&Throwable> {
+		return (**self).get_cause();
+	}
 }
 
 /// Trait implented by types that can be converted
@@ -87,13 +105,17 @@ impl Throwable for Exception {
 		return &self.stack;
 	}
 	
-	fn get_message(&self) -> &String {
+	fn get_message(&self) -> &str {
 		return &self.message;
 	}
 	
 	fn get_cause(&self) -> Option<&Throwable> {
+//		return match self.cause {
+//			Some(ref c) => Some(c),
+//			None => None
+//		};
 		if self.cause.is_some() {
-			return Some(self.cause.as_ref().unwrap().deref());
+			return Some(self.cause.as_ref().unwrap().deref())
 		}
 		return None;
 	}
@@ -113,7 +135,7 @@ impl IntoThrowable<Exception> for String {
 
 impl IntoThrowable<Exception> for fmt::Error {
 	fn into_throwable(self) -> Exception {
-		return Exception::new("Fmt Exception".to_string());
+		return Exception::new("Formatting Exception".to_string());
 	}
 }
 
